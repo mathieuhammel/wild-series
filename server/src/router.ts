@@ -12,6 +12,11 @@ import programActions from "./modules/program/programActions";
 
 router.get("/api/programs", programActions.browse);
 
+import categoryActions from "./modules/category/categoryActions";
+
+router.get("/api/categories", categoryActions.browse);
+router.get("/api/categories/:id", categoryActions.read);
+
 import sayActions from "./modules/say/sayActions";
 
 router.get("/", sayActions.sayWelcome);
