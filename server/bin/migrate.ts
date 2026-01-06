@@ -1,53 +1,56 @@
-// Load environment variables from .env file
 import "dotenv/config";
 
 import fs from "node:fs";
 import path from "node:path";
 
-// Build the path to the schema SQL file
-const schema = path.join(__dirname, "../../server/database/schema.sql");
-
-// Get database connection details from .env file
-const { DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME } = process.env;
-
-// Update the database schema
 import mysql from "mysql2/promise";
 
+const schema = path.join(__dirname, "../../server/database/schema.sql");
+
+const { DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME } = process.env;
+
 const migrate = async () => {
+  let database: mysql.Connection | null = null;
+
   try {
-    // Read the SQL statements from the schema file
+    if (!DB_HOST || !DB_USER || !DB_NAME) {
+      throw new Error(
+        "Missing required env vars. Please set DB_HOST, DB_USER, DB_NAME in your .env",
+      );
+    }
+
     const sql = fs.readFileSync(schema, "utf8");
 
-    // Create a specific connection to the database
-    const database = await mysql.createConnection({
+    const port = DB_PORT ? Number(DB_PORT) : undefined;
+
+    database = await mysql.createConnection({
       host: DB_HOST,
-      port: DB_PORT as number | undefined,
+      port,
       user: DB_USER,
       password: DB_PASSWORD,
-      multipleStatements: true, // Allow multiple SQL statements
+      multipleStatements: true,
     });
 
-    // Drop the existing database if it exists
-    await database.query(`drop database if exists ${DB_NAME}`);
+    const dbName = mysql.escapeId(DB_NAME);
 
-    // Create a new database with the specified name
-    await database.query(`create database ${DB_NAME}`);
+    await database.query(`DROP DATABASE IF EXISTS ${dbName}`);
 
-    // Switch to the newly created database
-    await database.query(`use ${DB_NAME}`);
+    await database.query(`CREATE DATABASE ${dbName}`);
 
-    // Execute the SQL statements to update the database schema
+    await database.query(`USE ${dbName}`);
+
     await database.query(sql);
-
-    // Close the database connection
-    database.end();
 
     console.info(`${DB_NAME} updated from '${path.normalize(schema)}' 🆙`);
   } catch (err) {
     const { message, stack } = err as Error;
-    console.error("Error updating the database:", message, stack);
+    console.error("Error updating the database:", message);
+    if (stack) console.error(stack);
+  } finally {
+    if (database) {
+      await database.end();
+    }
   }
 };
 
-// Run the migration function
 migrate();
